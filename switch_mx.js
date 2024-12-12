@@ -28,6 +28,17 @@ Params:
     if true, will include holes and pads for Kailh choc hotswap sockets
   solder: default is false
     if true, will include holes to solder switches (works with hotswap too)
+  include_plated_holes: default is false
+    Alternate version of the footprint compatible with side, reversible, hotswap, solder
+    options in any combination. Pretty, allows for connecting ground fill zones via
+    center hole, and allows for setting nets on stabilizers for your routing needs.
+  include_stabilizer_nets: default is false
+    if true, will add adjustable nets to plated stabilizer holes, 
+    LEFTSTAB: default is "D1"
+    RIGHTSTAB: default is "D2"
+  include_centerhole_net: default is false
+    if true, will add adjustable net to the center hole
+    CENTERHOLE: default is "GND"
   outer_pad_width_front: default 2.6
   outer_pad_width_back: default 2.6
     Allows you to make the outer hotswap pads smaller to silence DRC
@@ -99,6 +110,9 @@ module.exports = {
     side: 'B',
     reversible: false,
     hotswap: true,
+    include_plated_holes: false,
+    include_stabilizer_nets: false,
+    include_centerhole_net: false,
     solder: false,
     outer_pad_width_front: 2.6,
     outer_pad_width_back: 2.6,
@@ -122,7 +136,10 @@ module.exports = {
     keycap_3dmodel_xyz_rotation: [0, 0, 0],
     keycap_3dmodel_xyz_scale: [1, 1, 1],
     from: undefined,
-    to: undefined
+    to: undefined,
+    CENTERHOLE: { type: 'net', value: 'GND'},
+    LEFTSTAB: { type: 'net', value: 'D1' },
+    RIGHTSTAB: { type: 'net', value: 'D2' }
   },
   body: p => {
     const common_top = `
@@ -136,9 +153,27 @@ module.exports = {
       (effects (font (size 1 1) (thickness 0.15)))
     )
     
-    (pad "" np_thru_hole circle (at 0 0 90) (size 4.1 4.1) (drill 4.1) (layers "*.Cu" "*.Mask"))
-    (pad "" np_thru_hole circle (at 5.08 0 180) (size ${p.stabilizers_diameter} ${p.stabilizers_diameter}) (drill ${p.stabilizers_diameter}) (layers "*.Cu" "*.Mask"))
-    (pad "" np_thru_hole circle (at -5.08 0 180) (size ${p.stabilizers_diameter} ${p.stabilizers_diameter}) (drill ${p.stabilizers_diameter}) (layers "*.Cu" "*.Mask"))
+    (pad "" ${!p.include_plated_holes ? `np_thru_hole` : `thru_hole`} circle 
+      (at 0 0 ${p.r})
+      (size ${p.include_plated_holes ? `4.4 4.4` : `4.1 4.1`})
+      (drill 4.1)
+      (layers "*.Cu" "*.Mask")
+      ${p.include_plated_holes && p.include_centerhole_net ? p.CENTERHOLE : ''}
+    )
+    (pad "" ${!p.include_plated_holes ? `np_thru_hole` : `thru_hole`} circle 
+      (at 5.08 0 ${p.r})
+      (size ${p.stabilizers_diameter + (p.include_plated_holes ? 0.3 : 0)} ${p.stabilizers_diameter + (p.include_plated_holes ? 0.3 : 0)})
+      (drill ${p.stabilizers_diameter})
+      (layers "*.Cu" "*.Mask")
+      ${p.include_plated_holes && p.include_centerhole_net ? p.RIGHTSTAB : ''}
+    )
+    (pad "" ${!p.include_plated_holes ? `np_thru_hole` : `thru_hole`} circle 
+      (at -5.08 0 ${p.r})
+      (size ${p.stabilizers_diameter + (p.include_plated_holes ? 0.3 : 0)} ${p.stabilizers_diameter + (p.include_plated_holes ? 0.3 : 0)})
+      (drill ${p.stabilizers_diameter})
+      (layers "*.Cu" "*.Mask")
+      ${p.include_plated_holes && p.include_centerhole_net ? p.LEFTSTAB : ''}
+    )
     `
     const corner_marks = `
     (fp_line (start -7 -6) (end -7 -7) (layer "Dwgs.User") (stroke (width 0.15) (type solid)))
@@ -160,13 +195,13 @@ module.exports = {
 		(pad "" np_thru_hole circle (at -2.54 -5.08 180) (size 3 3) (drill 3) (layers "F&B.Cu" "*.Mask"))
 		(pad "" np_thru_hole circle (at 3.81 -2.54 180) (size 3 3) (drill 3) (layers "F&B.Cu" "*.Mask"))
 		(pad "1" smd rect (at 7.085 -2.54 ${p.r}) (size 2.55 ${p.outer_pad_height}) (layers "F.Cu" "F.Paste" "F.Mask") ${p.from})
-		(pad "2" smd roundrect
+		(pad "2" smd ${p.reversible ? 'roundrect' : 'rect'}
       (at -5.842 -5.08 ${p.r})
       (size 2.55 2.5)
-      (layers "F.Cu" "F.Paste" "F.Mask")
+      (layers "F.Cu" "F.Paste" "F.Mask")${p.reversible ? `
 			(roundrect_rratio 0)
 			(chamfer_ratio 0.2)
-			(chamfer bottom_right)
+			(chamfer bottom_right)` : ''}
       ${p.to}
     )
     `
@@ -175,14 +210,15 @@ module.exports = {
 		(pad "" np_thru_hole circle (at 2.54 -5.08 180) (size 3 3) (drill 3) (layers "F&B.Cu" "*.Mask"))
 		(pad "" np_thru_hole circle (at -3.81 -2.54 180) (size 3 3) (drill 3) (layers "F&B.Cu" "*.Mask"))
 		(pad "1" smd rect (at -7.085 -2.54 ${p.r}) (size 2.55 ${p.outer_pad_height}) (layers "B.Cu" "B.Paste" "B.Mask") ${p.from})
-		(pad "2" smd roundrect
+		(pad "2" smd ${p.reversible ? 'roundrect' : 'rect'}
       (at 5.842 -5.08 ${p.r})
       (size 2.55 2.5)
-      (layers "B.Cu" "B.Paste" "B.Mask")
+      (layers "B.Cu" "B.Paste" "B.Mask")${p.reversible ? `
 			(roundrect_rratio 0)
 			(chamfer_ratio 0.2)
-			(chamfer bottom_left)
-      ${p.to})
+			(chamfer bottom_left)` : ''}
+      ${p.to}
+    )
     `
 
     const hotswap_silkscreen_back = `
